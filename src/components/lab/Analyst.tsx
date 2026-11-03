@@ -1,0 +1,156 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import type { AnalysisResult, Phase } from "@/lib/types";
+
+interface Props {
+  analysis: AnalysisResult | null;
+  analyzing: boolean;
+  phase: Phase;
+  onRetry: () => void;
+}
+
+const SCAN_LINES = [
+  "Replaying your exact board on the server…",
+  "Auditing path cost against Dijkstra ground truth…",
+  "Measuring heuristic pruning efficiency…",
+  "Profiling terrain and wall topology…",
+  "Composing the debrief…",
+];
+
+function Typewriter({ text, onDone }: { text: string; onDone: () => void }) {
+  const [n, setN] = useState(0);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    let current = 0;
+    setN(0);
+    const id = window.setInterval(() => {
+      current = Math.min(text.length, current + 2);
+      setN(current);
+      if (current >= text.length) {
+        window.clearInterval(id);
+        onDoneRef.current();
+      }
+    }, 22);
+    return () => window.clearInterval(id);
+  }, [text]);
+  return (
+    <span>
+      {text.slice(0, n)}
+      {n < text.length && (
+        <span className="ml-0.5 inline-block h-4 w-2 translate-y-0.5 bg-neon" style={{ animation: "blink-caret 0.7s step-end infinite" }} />
+      )}
+    </span>
+  );
+}
+
+export default function Analyst({ analysis, analyzing, phase, onRetry }: Props) {
+  const [scanIdx, setScanIdx] = useState(0);
+  const [typed, setTyped] = useState(false);
+
+  useEffect(() => {
+    if (!analyzing) return;
+    setScanIdx(0);
+    const id = window.setInterval(
+      () => setScanIdx((i) => (i + 1) % SCAN_LINES.length),
+      1200,
+    );
+    return () => window.clearInterval(id);
+  }, [analyzing]);
+
+  useEffect(() => {
+    setTyped(false);
+  }, [analysis]);
+
+  return (
+    <div className="panel flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.26em] text-slate-400">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#e879f9" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 1v2M7 11v2M1 7h2M11 7h2M7 4.5A2.5 2.5 0 1 0 7 9.5 2.5 2.5 0 0 0 7 4.5z" />
+          </svg>
+          AI run analyst
+        </span>
+        {analysis && (
+          <span
+            className={`rounded border px-2 py-0.5 font-mono text-[8px] tracking-[0.18em] ${
+              analysis.source === "neural"
+                ? "border-mag/50 bg-mag/10 text-mag"
+                : "border-viol/50 bg-viol/10 text-viol"
+            }`}
+          >
+            {analysis.source === "neural" ? "NEURAL · GPT-4O-MINI" : "ENGINE · DETERMINISTIC"}
+          </span>
+        )}
+      </div>
+
+      {analyzing ? (
+        <div className="flex flex-1 flex-col justify-center gap-4 px-6 py-12">
+          <div className="relative h-1 overflow-hidden rounded-full bg-ink-800">
+            <div className="scanbar absolute h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-mag to-transparent" />
+          </div>
+          <p className="text-center font-mono text-[11px] tracking-wider text-mag/90">
+            {SCAN_LINES[scanIdx]}
+          </p>
+          <p className="text-center font-mono text-[9px] tracking-wider text-slate-600">
+            the analyst re-runs the full suite server-side — no hand-waving
+          </p>
+        </div>
+      ) : analysis ? (
+        <div className="flex-1 px-5 py-4">
+          <h3 className="font-display text-lg font-bold leading-snug text-white">
+            <Typewriter text={analysis.headline} onDone={() => setTyped(true)} />
+          </h3>
+          {typed && (
+            <>
+              <ul className="mt-4 space-y-3">
+                {analysis.insights.map((ins, i) => (
+                  <li
+                    key={i}
+                    className="anim-in flex gap-2.5 text-[13px] leading-relaxed text-slate-400"
+                    style={{ animationDelay: `${i * 0.18}s` }}
+                  >
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rotate-45 bg-neon/70" />
+                    <span>{ins}</span>
+                  </li>
+                ))}
+              </ul>
+              <div
+                className="anim-in mt-5 rounded-lg border border-volt/30 bg-volt/5 px-4 py-3"
+                style={{ animationDelay: `${analysis.insights.length * 0.18 + 0.1}s` }}
+              >
+                <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-volt">verdict</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-slate-300">{analysis.verdict}</p>
+              </div>
+              <button type="button" onClick={onRetry} className="btn mt-4 !px-3 !py-1.5 text-[10px]">
+                ⟳ RE-ANALYZE
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+          <div className="relative" aria-hidden="true">
+            <span className="absolute inset-0 rounded-full bg-mag/20 blur-xl" />
+            <svg className="relative" width="36" height="36" viewBox="0 0 14 14" fill="none" stroke="#e879f9" strokeWidth="0.9" strokeLinecap="round">
+              <path d="M7 1v2M7 11v2M1 7h2M11 7h2M7 4.5A2.5 2.5 0 1 0 7 9.5 2.5 2.5 0 0 0 7 4.5z" />
+            </svg>
+          </div>
+          <p className="max-w-xs text-sm leading-relaxed text-slate-500">
+            {phase === "running" || phase === "tracing"
+              ? "The analyst is watching your search. It debriefs the moment the route locks in."
+              : "Complete a search and the analyst will audit it — optimality vs. Dijkstra ground truth, heuristic pruning, terrain effects, and a next-move recommendation."}
+          </p>
+          <p className="font-mono text-[9px] tracking-wider text-slate-600">
+            deterministic engine · upgrades to GPT when OPENAI_API_KEY is set
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
